@@ -29,8 +29,9 @@ function configure(parser)
 	parser:argument("txDev", "Device to transmit from."):convert(tonumber)
 	parser:argument("rxDev", "Device to receive from."):convert(tonumber)
 	parser:option("-r --rate", "Transmit rate in Mbit/s."):default(10000):convert(tonumber)
-	parser:option("-f --flows", "Number of flows (randomized source IP)."):default(4):convert(tonumber)
+	parser:option("-fl --flows", "Number of flows (randomized source IP)."):default(4):convert(tonumber)
 	parser:option("-s --size", "Packet size."):default(60):convert(tonumber)
+	parser:option("-f --file", "Filename of the latency histogram."):default("histogram.csv")
 end
 
 function master(args)
@@ -43,7 +44,7 @@ function master(args)
 		txDev:getTxQueue(0):setRate(args.rate - (args.size + 4) * 8 / 1000)
 	end
 	mg.startTask("loadSlave", txDev:getTxQueue(0), rxDev, args.size, args.flows)
-	mg.startTask("timerSlave", txDev:getTxQueue(1), rxDev:getRxQueue(1), args.size, args.flows)
+	mg.startTask("timerSlave", txDev:getTxQueue(1), rxDev:getRxQueue(1), args.size, args.flows, args.file)
 	arp.startArpTask{
 		-- run ARP on both ports
 		{ rxQueue = rxDev:getRxQueue(2), txQueue = rxDev:getTxQueue(2), ips = RX_IP },
@@ -104,7 +105,7 @@ function loadSlave(queue, rxDev, size, flows)
 	rxCtr:finalize()
 end
 
-function timerSlave(txQueue, rxQueue, size, flows)
+function timerSlave(txQueue, rxQueue, size, flows, histfile)
 	doArp()
 	if size < 84 then
 		log:warn("Packet size %d is smaller than minimum timestamp size 84. Timestamped packets will be larger than load packets.", size)
@@ -129,6 +130,6 @@ function timerSlave(txQueue, rxQueue, size, flows)
 	-- print the latency stats after all the other stuff
 	mg.sleepMillis(300)
 	hist:print()
-	hist:save("histogram.csv")
+	hist:save(histfile)
 end
 
